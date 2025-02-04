@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy)]
@@ -577,29 +578,56 @@ pub trait Colors {
     /// ```
     fn bg_gradient(&self, steps: &[&'static str]) -> String;
 
-    // fonts
-    /// makes text bold
-    // fn font_bold(&self) -> String;
-    // /// makes text italic
-    // fn font_italic(&self) -> String;
-    // /// makes text faint
-    // fn font_faint(&self) -> String;
-    // /// clears all text formatting
-    // fn font_clear(&self) -> String;
-    // /// adds underline to text
-    // fn font_underline(&self) -> String;
+    /// Makes text bold
+    fn bold(&self) -> String;
 
-    // // animation
-    // /// makes text blink
-    // fn anime_blink(&self) -> String;
+    /// Makes text italic
+    fn italic(&self) -> String;
 
-    // utils
-    /// applies custom style to text
-    // fn style(&self, style: &'static str) -> String;
-    // fn text_random(&self) -> String;
-    // fn bg_random(&self) -> String;
-    // fn text_mix(&self, colors: &[&'static str]) -> String;
-    // fn bg_mix(&self, colors: &[&'static str]) -> String;
+    /// Adds underline to text
+    fn underline(&self) -> String;
+
+    /// Adds strikethrough to text
+    fn strikethrough(&self) -> String;
+
+    /// Makes text appear dimmer
+    fn dim(&self) -> String;
+
+    /// Makes text blink
+    fn blink(&self) -> String;
+
+    /// Swaps foreground and background colors
+    fn reverse(&self) -> String;
+
+    /// Makes text blink rapidly
+    fn blink_fast(&self) -> String;
+
+    /// Makes text blink slowly
+    fn blink_slow(&self) -> String;
+
+    /// Creates a fade-in effect using different brightness levels
+    fn fade_in(&self) -> String;
+
+    /// Creates a fade-out effect using different brightness levels
+    fn fade_out(&self) -> String;
+
+    /// Pads text with spaces on the left to reach given width
+    fn pad_left(&self, width: usize) -> String;
+    
+    /// Pads text with spaces on the right to reach given width
+    fn pad_right(&self, width: usize) -> String;
+
+    /// Centers text within specified width
+    fn center(&self, width: usize) -> String;
+
+    /// Surrounds text with a box
+    fn box_it(&self) -> String;
+
+    /// Adds a single-line border around text
+    fn border(&self) -> String;
+
+    /// Adds a double-line border around text
+    fn double_border(&self) -> String;
 
     // helpers
     fn code(&self, code: usize) -> String;
@@ -612,10 +640,160 @@ where
 {
     // helpers
     fn code(&self, code: usize) -> String {
-        format!("\x1B[{}m{}\x1B[0m", code, self)
+        let s = self.to_string();
+
+        if s.contains("\x1B[") {
+            // Split by reset code but keep the separators
+            let parts: Vec<&str> = s.split_inclusive("\x1B[0m").collect();
+            let mut result = String::new();
+
+            for part in parts {
+                if part.starts_with("\x1B[") {
+                    // This part already has color formatting, keep it as is
+                    result.push_str(part);
+                } else {
+                    // This part has no color formatting, apply new color
+                    result.push_str(&format!("\x1B[{}m{}", code, part));
+                }
+            }
+            result
+        } else {
+            // No existing formatting, apply color normally
+            format!("\x1B[{}m{}\x1B[0m", code, s)
+        }
     }
+
     fn codes(&self, initial: usize, (a, b, c): (usize, usize, usize)) -> String {
-        format!("\x1B[{initial};2;{a};{b};{c}m{self}\x1B[{}m", initial + 1)
+        let s = self.to_string();
+
+        if s.contains("\x1B[") {
+            let parts: Vec<&str> = s.split_inclusive("\x1B[0m").collect();
+            let mut result = String::new();
+
+            for part in parts {
+                if part.starts_with("\x1B[") {
+                    // Keep existing color formatting
+                    result.push_str(part);
+                } else {
+                    // Apply new color to unformatted text
+                    result.push_str(&format!("\x1B[{};2;{};{};{}m{}", initial, a, b, c, part));
+                }
+            }
+            result
+        } else {
+            format!("\x1B[{};2;{};{};{}m{}\x1B[0m", initial, a, b, c, s)
+        }
+    }
+
+    fn blink_fast(&self) -> String {
+          // Some terminals support code 6 for rapid blink
+          format!("\x1B[6m{}\x1B[0m", self)
+      }
+  
+      fn blink_slow(&self) -> String {
+          // Using standard blink (code 5)
+          format!("\x1B[5m{}\x1B[0m", self)
+      }
+  
+      fn fade_in(&self) -> String {
+          let s = self.to_string();
+          let mut result = String::new();
+          let brightnesses = [232, 236, 240, 244, 248, 252]; // Using greyscale colors
+          
+          for (i, c) in s.chars().enumerate() {
+              let brightness = brightnesses[i % brightnesses.len()];
+              result.push_str(&format!("\x1B[38;5;{}m{}", brightness, c));
+          }
+          result.push_str("\x1B[0m");
+          result
+      }
+  
+      fn fade_out(&self) -> String {
+          let s = self.to_string();
+          let mut result = String::new();
+          let brightnesses = [252, 248, 244, 240, 236, 232]; // Reverse greyscale
+          
+          for (i, c) in s.chars().enumerate() {
+              let brightness = brightnesses[i % brightnesses.len()];
+              result.push_str(&format!("\x1B[38;5;{}m{}", brightness, c));
+          }
+          result.push_str("\x1B[0m");
+          result
+      }
+
+    fn pad_left(&self, width: usize) -> String {
+         let s = self.to_string();
+         let len = s.chars().count();
+         if len >= width {
+             return s;
+         }
+         format!("{}{}", " ".repeat(width - len), s)
+     }
+ 
+     fn pad_right(&self, width: usize) -> String {
+         let s = self.to_string();
+         let len = s.chars().count();
+         if len >= width {
+             return s;
+         }
+         format!("{}{}", s, " ".repeat(width - len))
+     }
+
+    fn center(&self, width: usize) -> String {
+        let s = self.to_string();
+        let len = s.chars().count();
+        if len >= width {
+            return s;
+        }
+        let left_pad = (width - len) / 2;
+        let right_pad = width - len - left_pad;
+        format!("{}{}{}", " ".repeat(left_pad), s, " ".repeat(right_pad))
+    }
+
+    fn box_it(&self) -> String {
+        let s = self.to_string();
+        let width = s.chars().count();
+        format!("┌{}┐\n│{}│\n└{}┘", "─".repeat(width), s, "─".repeat(width))
+    }
+
+    fn border(&self) -> String {
+        let s = self.to_string();
+        let width = s.chars().count();
+        format!("╭{}╮\n│{}│\n╰{}╯", "─".repeat(width), s, "─".repeat(width))
+    }
+
+    fn double_border(&self) -> String {
+        let s = self.to_string();
+        let width = s.chars().count();
+        format!("╔{}╗\n║{}║\n╚{}╝", "═".repeat(width), s, "═".repeat(width))
+    }
+
+    fn bold(&self) -> String {
+        self.code(1)
+    }
+
+    fn italic(&self) -> String {
+        self.code(3)
+    }
+
+    fn underline(&self) -> String {
+        self.code(4)
+    }
+
+    fn strikethrough(&self) -> String {
+        self.code(9)
+    }
+
+    fn dim(&self) -> String {
+        self.code(2)
+    }
+
+    fn blink(&self) -> String {
+        self.code(5)
+    }
+
+    fn reverse(&self) -> String {
+        self.code(7)
     }
 
     // default colors
